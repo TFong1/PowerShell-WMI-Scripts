@@ -12,7 +12,7 @@ Set-Variable SSD -Option ReadOnly -Value 4
 
 function ConvertToString {
     param( [char[]]$str )
-    ($str -notmatch 0 | ForEach-Object {[char] $_}) -join ""
+    ($str -ne 0 | ForEach-Object {[char] $_}) -join ""
 }
 
 function To_GB {
@@ -77,8 +77,14 @@ foreach ($card in $videoCards) {Write-Host "    *", $card.Caption}
 Write-Host "`nMonitor(s):"
 $monitors = @(Get-WmiObject -Namespace "root\WMI" -Class "WMIMonitorID" -ComputerName $Computername)
 foreach ($mon in $monitors) {
-    $monitorName = ConvertToString -str $mon.UserFriendlyName
-    Write-Host "    *", $monitorName, ":"
+    if ($mon.UserFriendlyNameLength -gt 0) {
+        $monitorName = ConvertToString -str $mon.UserFriendlyName
+    }
+    else {
+        $monitorName = ConvertToString -str $mon.ManufacturerName
+    }
+    $monitorSerialNumber = ConvertToString -str $mon.SerialNumberID
+    Write-Host "    * $($monitorName) ($monitorSerialNumber)"
 }
 
 #####################################################################
