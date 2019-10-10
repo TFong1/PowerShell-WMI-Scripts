@@ -7,6 +7,7 @@ param (
 )
 
 Set-Variable PhysicalDrive -Option ReadOnly -Value 3
+Set-Variable LocalDisk -Option ReadOnly 3
 Set-Variable HDD -Option ReadOnly -Value 3
 Set-Variable SSD -Option ReadOnly -Value 4
 
@@ -42,29 +43,28 @@ Write-Host (Get-WmiObject -ComputerName $Computername -Class Win32_ComputerSyste
 
 ############################################################################
 
-$bios = @(Get-WmiObject -ComputerName $Computername -Class Win32_BIOS | Select-Object *).Caption
-Write-Host "`nBIOS version:", $bios
-
-###########################################################################
-
 $os = Get-WmiObject -ComputerName $Computername -Class Win32_OperatingSystem | Select-Object *
 Write-Host ""
 Write-Host $os.Caption
-Write-Host "    * Version:"$os.version
-Write-Host "    *"$os.OSArchitecture
+Write-Host "    * Version:  $($os.version)"
+Write-Host "    * $($os.OSArchitecture)"
 
 ##############################################################################
 
-Write-Host "`nRAM:"
+$bios = @(Get-WmiObject -ComputerName $Computername -Class Win32_BIOS | Select-Object *)
+Write-Host "`nBIOS version:   $($bios.SMBIOSBIOSVersion)"
+Write-Host "Serial Number:  $($bios.SerialNumber)"
+
+###########################################################################
+
 $totalRAM = @(Get-WmiObject -ComputerName $Computername -Class Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum
 $totalRAM = To_GB -numBytes $totalRAM
-Write-Host "    *"$totalRAM" GB"
+Write-Host "RAM:            $($totalRAM) GB"
 
 #################################################################################3
 
 # BOOT TYPE:  Legacy, UEFI
-Write-Host "`nBoot Type:"
-Write-Host "    *"$(if ($null -eq ([Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $Computername).OpenSubKey('SYSTEM\CurrentControlSet\Control\SecureBoot\State'))) { 'Legacy BIOS'} else { 'UEFI'})
+Write-Host "Boot Type:      "$(if ($null -eq ([Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $Computername).OpenSubKey('SYSTEM\CurrentControlSet\Control\SecureBoot\State'))) { 'Legacy BIOS'} else { 'UEFI'})
 
 ########################################################################
 
@@ -84,19 +84,26 @@ foreach ($mon in $monitors) {
         $monitorName = ConvertToString -str $mon.ManufacturerName
     }
     $monitorSerialNumber = ConvertToString -str $mon.SerialNumberID
-    Write-Host "    * $($monitorName) ($monitorSerialNumber)"
+    Write-Host "    * $($monitorName.Trim()) ( S/N: $monitorSerialNumber)"
 }
 
 #####################################################################
 
 Write-Host "`nDisk Drive(s):"
-#$drives = @(Get-WmiObject -ComputerName $Computername -Class Win32_LogicalDisk | Select-Object -Property DeviceID, DriveType, FileSystem, FreeSpace, MediaType, Size)
 $drives = @(Get-WmiObject -ComputerName $Computername -Class MSFT_PhysicalDisk -Namespace "root\Microsoft\Windows\Storage" | Select-Object *)
 foreach ($hd in $drives) {
     $mediaType = DiskMediaType -mediaType $hd.MediaType
     $diskSize = To_GB -numBytes $hd.Size
     #$usedSpace = To_GB -numBytes $hd.AllocatedSize
     Write-Host "    *", $hd.FriendlyName, $mediaType, $diskSize"GB"
+}
+
+$drives = @(Get-WmiObject -ComputerName $Computername -Class Win32_LogicalDisk | Select-Object -Property DeviceID, DriveType, FileSystem, FreeSpace, MediaType, Size)
+foreach ($hd in $drives) {
+    if ($hd.DriveType -eq $LocalDisk) {
+        $freespace = To_GB -numBytes $hd.FreeSpace
+        Write-Host "    * $($hd.DeviceID)   $($freespace) GB Free"
+    }
 }
 
 #################################################################
@@ -117,7 +124,7 @@ else {
         #$lastname = $aduser.Surname
         $name = $aduser.DisplayName
         Write-Host "    * $domain\$username ($name) logged on since: $($user.ConvertToDateTime($user.CreationDate).ToString("f"))"
-        Write-Host "    * Phone: "$aduser.TelephoneNumber
+        Write-Host "    * Office Phone: "$aduser.OfficePhone
         Write-Host "    * Employee type:"$aduser.Description
         Write-Host "    * Password expired:"$aduser.PasswordExpired
         Write-Host "    * Last Logon Date:"$aduser.LastLogonDate
@@ -132,5 +139,4 @@ else {
     Write-Host "    * Logon screen : OFF"
 }
 
-
-############
+######################################################################
